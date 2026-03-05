@@ -1,0 +1,24 @@
+{
+  "name": "servidor_backend_parejas",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "test": "node app.js  "
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Karolatf/servidor_backend_parejas.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Karolatf/servidor_backend_parejas/issues"
+  },
+  "homepage": "https://github.com/Karolatf/servidor_backend_parejas#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
