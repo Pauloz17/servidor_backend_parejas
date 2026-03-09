@@ -1,17 +1,12 @@
-import express from 'express'
+import express from 'express';
+import { getTasks, createTasks, updateTasks } from '../controller/tasks.controller.js';
 
-const tasksRouter = express.Router()
+const tasksRouter = express.Router();
 
-tasksRouter.get('/', (req, res) => {
-    res
-        .status(200)
-        .json({message: "Lista de tareas"})
-})
+tasksRouter.get('/', getTasks);
 
-tasksRouter.post('/', (req, res) => {
-    res
-        .status(201)
-        .json({message: "Tarea creada"})
-})
+tasksRouter.post('/', createTasks)
+
+tasksRouter.put('/:id', updateTasks)
 
 export default tasksRouter;
