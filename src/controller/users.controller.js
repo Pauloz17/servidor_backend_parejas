@@ -1,158 +1,137 @@
-// Controlador de usuarios
-// Capa de control: recibe la petición HTTP desde la ruta,
-// llama al modelo para operar los datos, y responde al cliente
-// con el código HTTP correcto.
-// NUNCA maneja datos directamente (eso es tarea del modelo).
+// MÓDULO: controller/users.controller.js
+// CAPA: Controlador (recibe HTTP, llama el modelo, responde HTTP)
 
-// Importamos las funciones del modelo de usuarios.
-// La ruta '../models/users.model.js' sube una carpeta (controller → src)
-// y entra a models para encontrar el archivo.
+// Responsabilidad única: manejar las peticiones HTTP de usuarios.
+// NUNCA maneja datos directamente.
+// Llama al modelo y decide el código de estado y el cuerpo de la respuesta.
+
+// Paulo importa estas funciones en userRoutes.js con estos nombres exactos:
+//   getUsers, getUserById, createUser, updateUser, deleteUser, getUserTasks
+
+// Se importan las funciones del modelo de usuarios
+// Se renombran con 'as' para que los nombres del export no choquen con los del modelo
 import {
-  getAllUsers,
-  getUserById,
-  createUser,
-  updateUser,
-  deleteUser,
-} from "../models/users.model.js";
+    getAllUsers,
+    getUserById    as findUserById,
+    createUser     as insertUser,
+    updateUser     as modifyUser,
+    deleteUser     as removeUser
+} from '../models/userModel.js';
 
-// getUsers — Maneja GET /users
-// Obtiene todos los usuarios y responde con código 200.
-// 200 = OK: la petición fue exitosa y hay datos para devolver.
-const getUsers = (req, res) => {
-  try {
-    const users = getAllUsers(); // Le pedimos los datos al modelo
+// Se importa getTasksByUserId del modelo de tareas para getUserTasks
+import { getTasksByUserId } from '../models/taskModel.js';
 
-    res.status(200).json({
-      msn: "Lista de usuarios obtenida correctamente",
-      data: users,
-    });
-  } catch (error) {
-    // 500 = Internal Server Error: algo falló inesperadamente en el servidor
-    res.status(500).json({
-      msn: "Error al obtener usuarios",
-      error: error.message,
-    });
-  }
-};
-
-// getUser — Maneja GET /users/:id
-// Busca un usuario por su id. Si no existe responde con 404.
-// req.params.id viene como string desde la URL (/users/2 → "2"),
-// lo convertimos a número con Number() porque el modelo usa números.
-const getUser = (req, res) => {
-  try {
-    const id = Number(req.params.id); // ejemplo: "2" → 2
-    const user = getUserById(id);
-
-    if (!user) {
-      // 404 = Not Found: el recurso pedido no existe
-      return res.status(404).json({
-        msn: `Usuario con id ${id} no encontrado`,
-      });
+// GET /api/users
+// Retorna todos los usuarios
+// Paulo: router.get('/', getUsers)
+export function getUsers(req, res) {
+    try {
+        const usuarios = getAllUsers();
+        // 200 OK
+        res.status(200).json(usuarios);
+    } catch (error) {
+        console.error('Error en getUsers:', error);
+        res.status(500).json({ error: 'Error al obtener los usuarios' });
     }
+}
 
-    res.status(200).json({
-      msn: "Usuario encontrado",
-      data: user,
-    });
-  } catch (error) {
-    res.status(500).json({
-      msn: "Error al buscar usuario",
-      error: error.message,
-    });
-  }
-};
+// GET /api/users/:id
+// Retorna un usuario por su id
+// Paulo: router.get('/:id', getUserById)
+export function getUserById(req, res) {
+    try {
+        const { id } = req.params;
+        const usuario = findUserById(id);
 
-// postUser — Maneja POST /users
-// Crea un nuevo usuario con los datos del cuerpo de la petición.
-// req.body contiene lo que el cliente envió en formato JSON.
-// 201 = Created: se creó un recurso nuevo exitosamente.
-const postUser = (req, res) => {
-  try {
-    const { name, email, document } = req.body; // Extraemos los campos del body
+        if (!usuario) {
+            // 404 Not Found: el recurso no existe
+            return res.status(404).json({ error: `Usuario con id ${id} no encontrado` });
+        }
 
-    // Validación: los tres campos son obligatorios
-    if (!name || !email || !document) {
-      // 400 = Bad Request: el cliente envió datos incompletos
-      return res.status(400).json({
-        msn: "Los campos name, email y document son requeridos",
-      });
+        res.status(200).json(usuario);
+    } catch (error) {
+        console.error('Error en getUserById:', error);
+        res.status(500).json({ error: 'Error al obtener el usuario' });
     }
+}
 
-    const newUser = createUser({ name, email, document });
+// POST /api/users
+// Crea un usuario nuevo
+// Paulo: router.post('/', createUser)
+// IMPORTANTE: Karol envía { documento, name, email } desde crearUsuario() en usuariosApi.js
+export function createUser(req, res) {
+    try {
+        const { documento, name, email } = req.body;
 
-    res.status(201).json({
-      msn: "Usuario creado correctamente",
-      data: newUser,
-    });
-  } catch (error) {
-    res.status(500).json({
-      msn: "Error al crear usuario",
-      error: error.message,
-    });
-  }
-};
+        // Se valida que todos los campos requeridos estén presentes
+        if (!documento || !name || !email) {
+            // 400 Bad Request: datos incompletos
+            return res.status(400).json({ error: 'Los campos documento, name y email son obligatorios' });
+        }
 
-// putUser — Maneja PUT /users/:id
-// Actualiza un usuario existente con los nuevos datos del body.
-// 200 si actualizó, 404 si el id no existe.
-const putUser = (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const { name, email, document } = req.body;
+        const nuevoUsuario = insertUser({ documento, name, email });
 
-    const updatedUser = updateUser(id, { name, email, document });
-
-    if (!updatedUser) {
-      return res.status(404).json({
-        msn: `Usuario con id ${id} no encontrado`,
-      });
+        // 201 Created: recurso creado exitosamente
+        res.status(201).json(nuevoUsuario);
+    } catch (error) {
+        console.error('Error en createUser:', error);
+        res.status(500).json({ error: 'Error al crear el usuario' });
     }
+}
 
-    res.status(200).json({
-      msn: `Usuario con id ${id} actualizado correctamente`,
-      data: updatedUser,
-    });
-  } catch (error) {
-    res.status(500).json({
-      msn: "Error al actualizar usuario",
-      error: error.message,
-    });
-  }
-};
+// PUT /api/users/:id
+// Actualiza los datos de un usuario
+// Paulo: router.put('/:id', updateUser)
+export function updateUser(req, res) {
+    try {
+        const { id } = req.params;
+        const campos = req.body;
 
-// removeUser — Maneja DELETE /users/:id
-// Elimina un usuario y devuelve el objeto eliminado.
-// Usamos 200 en vez de 204 para poder incluir mensaje en el JSON.
-const removeUser = (req, res) => {
-  try {
-    const id = Number(req.params.id);
+        const usuarioActualizado = modifyUser(id, campos);
 
-    const deletedUser = deleteUser(id);
+        if (!usuarioActualizado) {
+            return res.status(404).json({ error: `Usuario con id ${id} no encontrado` });
+        }
 
-    if (!deletedUser) {
-      return res.status(404).json({
-        msn: `Usuario con id ${id} no encontrado`,
-      });
+        res.status(200).json(usuarioActualizado);
+    } catch (error) {
+        console.error('Error en updateUser:', error);
+        res.status(500).json({ error: 'Error al actualizar el usuario' });
     }
+}
 
-    res.status(200).json({
-      msn: `Usuario con id ${id} eliminado correctamente`,
-      data: deletedUser,
-    });
-  } catch (error) {
-    res.status(500).json({
-      msn: "Error al eliminar usuario",
-      error: error.message,
-    });
-  }
-};
+// DELETE /api/users/:id
+// Elimina un usuario
+// Paulo: router.delete('/:id', deleteUser)
+// IMPORTANTE: Karol llama DELETE /api/users/:id desde eliminarUsuario() en usuariosApi.js
+export function deleteUser(req, res) {
+    try {
+        const { id } = req.params;
+        const usuarioEliminado = removeUser(id);
 
-// Exportamos las funciones para que las rutas las puedan importar
-export {
-  getUsers,
-  getUser,
-  postUser,
-  putUser,
-  removeUser,
-};
+        if (!usuarioEliminado) {
+            return res.status(404).json({ error: `Usuario con id ${id} no encontrado` });
+        }
+
+        res.status(200).json({ mensaje: `Usuario "${usuarioEliminado.name}" eliminado correctamente` });
+    } catch (error) {
+        console.error('Error en deleteUser:', error);
+        res.status(500).json({ error: 'Error al eliminar el usuario' });
+    }
+}
+
+// GET /api/users/:userId/tasks
+// Retorna las tareas asignadas a un usuario específico
+// Paulo: router.get('/:userId/tasks', getUserTasks)
+export function getUserTasks(req, res) {
+    try {
+        const { userId } = req.params;
+        const tareas = getTasksByUserId(userId);
+
+        // 200 OK aunque el arreglo esté vacío
+        res.status(200).json(tareas);
+    } catch (error) {
+        console.error('Error en getUserTasks:', error);
+        res.status(500).json({ error: 'Error al obtener las tareas del usuario' });
+    }
+}
