@@ -1,318 +1,137 @@
-// Controlador de tareas
-// Recibe peticiones HTTP, llama al modelo de tareas,
-// y responde al cliente con el código correcto.
-// Incluye funciones especiales: asignación múltiple,
-// filtros, cambio de estado y datos para el dashboard.
+// MÓDULO: controller/users.controller.js
+// CAPA: Controlador (recibe HTTP, llama el modelo, responde HTTP)
 
-// Importamos las funciones del modelo de tareas
+// Responsabilidad única: manejar las peticiones HTTP de usuarios.
+// NUNCA maneja datos directamente.
+// Llama al modelo y decide el código de estado y el cuerpo de la respuesta.
+
+// Paulo importa estas funciones en userRoutes.js con estos nombres exactos:
+//   getUsers, getUserById, createUser, updateUser, deleteUser, getUserTasks
+
+// Se importan las funciones del modelo de usuarios
+// Se renombran con 'as' para que los nombres del export no choquen con los del modelo
 import {
-  getAllTasks,
-  getTaskById,
-  createTask,
-  updateTask,
-  deleteTask,
-  assignUsersToTask,
-  updateTaskStatus,
-  getAssignedUsers,
-  filterTasks,
-  getDashboardData,
-} from "../models/tasks.model.js";
+    getAllUsers,
+    getUserById    as findUserById,
+    createUser     as insertUser,
+    updateUser     as modifyUser,
+    deleteUser     as removeUser
+} from '../models/userModel.js';
 
-// Importamos getUserById del modelo de usuarios para poder devolver
-// los datos COMPLETOS de cada usuario asignado, no solo sus ids.
-import { getUserById } from "../models/users.model.js";
+// Se importa getTasksByUserId del modelo de tareas para getUserTasks
+import { getTasksByUserId } from '../models/taskModel.js';
 
-// getTasks — Maneja GET /tasks
-// Obtiene todas las tareas y responde con 200.
-const getTasks = (req, res) => {
-  try {
-    const tasks = getAllTasks();
-
-    res.status(200).json({
-      msn: "Lista de tareas obtenida correctamente",
-      data: tasks,
-    });
-  } catch (error) {
-    res.status(500).json({
-      msn: "Error al obtener tareas",
-      error: error.message,
-    });
-  }
-};
-
-// getTask — Maneja GET /tasks/:id
-// Busca una tarea por id. Responde 404 si no existe.
-const getTask = (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const task = getTaskById(id);
-
-    if (!task) {
-      return res.status(404).json({
-        msn: `Tarea con id ${id} no encontrada`,
-      });
+// GET /api/users
+// Retorna todos los usuarios
+// Paulo: router.get('/', getUsers)
+export function getUsers(req, res) {
+    try {
+        const usuarios = getAllUsers();
+        // 200 OK
+        res.status(200).json(usuarios);
+    } catch (error) {
+        console.error('Error en getUsers:', error);
+        res.status(500).json({ error: 'Error al obtener los usuarios' });
     }
+}
 
-    res.status(200).json({
-      msn: "Tarea encontrada",
-      data: task,
-    });
-  } catch (error) {
-    res.status(500).json({
-      msn: "Error al buscar tarea",
-      error: error.message,
-    });
-  }
-};
+// GET /api/users/:id
+// Retorna un usuario por su id
+// Paulo: router.get('/:id', getUserById)
+export function getUserById(req, res) {
+    try {
+        const { id } = req.params;
+        const usuario = findUserById(id);
 
-// postTask — Maneja POST /tasks
-// Crea una nueva tarea. El estado inicial siempre es "pendiente"
-// (el modelo se encarga de eso). Responde con 201.
-const postTask = (req, res) => {
-  try {
-    const { title, body, assignedUsers } = req.body;
+        if (!usuario) {
+            // 404 Not Found: el recurso no existe
+            return res.status(404).json({ error: `Usuario con id ${id} no encontrado` });
+        }
 
-    // title y body son obligatorios
-    if (!title || !body) {
-      return res.status(400).json({
-        msn: "Los campos title y body son requeridos",
-      });
+        res.status(200).json(usuario);
+    } catch (error) {
+        console.error('Error en getUserById:', error);
+        res.status(500).json({ error: 'Error al obtener el usuario' });
     }
+}
 
-    const newTask = createTask({ title, body, assignedUsers });
+// POST /api/users
+// Crea un usuario nuevo
+// Paulo: router.post('/', createUser)
+// IMPORTANTE: Karol envía { documento, name, email } desde crearUsuario() en usuariosApi.js
+export function createUser(req, res) {
+    try {
+        const { documento, name, email } = req.body;
 
-    res.status(201).json({
-      msn: "Tarea creada correctamente",
-      data: newTask,
-    });
-  } catch (error) {
-    res.status(500).json({
-      msn: "Error al crear tarea",
-      error: error.message,
-    });
-  }
-};
+        // Se valida que todos los campos requeridos estén presentes
+        if (!documento || !name || !email) {
+            // 400 Bad Request: datos incompletos
+            return res.status(400).json({ error: 'Los campos documento, name y email son obligatorios' });
+        }
 
-// putTask — Maneja PUT /tasks/:id
-// Actualiza campos básicos (title, body). Para estado o usuarios
-// asignados existen funciones específicas más abajo.
-const putTask = (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const { title, body } = req.body;
+        const nuevoUsuario = insertUser({ documento, name, email });
 
-    const updatedTask = updateTask(id, { title, body });
-
-    if (!updatedTask) {
-      return res.status(404).json({
-        msn: `Tarea con id ${id} no encontrada`,
-      });
+        // 201 Created: recurso creado exitosamente
+        res.status(201).json(nuevoUsuario);
+    } catch (error) {
+        console.error('Error en createUser:', error);
+        res.status(500).json({ error: 'Error al crear el usuario' });
     }
+}
 
-    res.status(200).json({
-      msn: `Tarea con id ${id} actualizada correctamente`,
-      data: updatedTask,
-    });
-  } catch (error) {
-    res.status(500).json({
-      msn: "Error al actualizar tarea",
-      error: error.message,
-    });
-  }
-};
+// PUT /api/users/:id
+// Actualiza los datos de un usuario
+// Paulo: router.put('/:id', updateUser)
+export function updateUser(req, res) {
+    try {
+        const { id } = req.params;
+        const campos = req.body;
 
-// removeTask — Maneja DELETE /tasks/:id
-// Elimina una tarea y devuelve el objeto eliminado.
-const removeTask = (req, res) => {
-  try {
-    const id = Number(req.params.id);
+        const usuarioActualizado = modifyUser(id, campos);
 
-    const deletedTask = deleteTask(id);
+        if (!usuarioActualizado) {
+            return res.status(404).json({ error: `Usuario con id ${id} no encontrado` });
+        }
 
-    if (!deletedTask) {
-      return res.status(404).json({
-        msn: `Tarea con id ${id} no encontrada`,
-      });
+        res.status(200).json(usuarioActualizado);
+    } catch (error) {
+        console.error('Error en updateUser:', error);
+        res.status(500).json({ error: 'Error al actualizar el usuario' });
     }
+}
 
-    res.status(200).json({
-      msn: `Tarea con id ${id} eliminada correctamente`,
-      data: deletedTask,
-    });
-  } catch (error) {
-    res.status(500).json({
-      msn: "Error al eliminar tarea",
-      error: error.message,
-    });
-  }
-};
+// DELETE /api/users/:id
+// Elimina un usuario
+// Paulo: router.delete('/:id', deleteUser)
+// IMPORTANTE: Karol llama DELETE /api/users/:id desde eliminarUsuario() en usuariosApi.js
+export function deleteUser(req, res) {
+    try {
+        const { id } = req.params;
+        const usuarioEliminado = removeUser(id);
 
-// assignUsers — Maneja POST /tasks/:id/assign
-// Asigna múltiples usuarios a una tarea.
-// El body debe enviar: { userIds: [1, 2, 3] }
-// El modelo evita duplicados automáticamente con un Set.
-const assignUsers = (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const { userIds } = req.body;
+        if (!usuarioEliminado) {
+            return res.status(404).json({ error: `Usuario con id ${id} no encontrado` });
+        }
 
-    // Validamos que userIds exista y sea un arreglo
-    if (!userIds || !Array.isArray(userIds)) {
-      return res.status(400).json({
-        msn: "El campo userIds debe ser un arreglo de ids. Ej: { userIds: [1, 2] }",
-      });
+        res.status(200).json({ mensaje: `Usuario "${usuarioEliminado.name}" eliminado correctamente` });
+    } catch (error) {
+        console.error('Error en deleteUser:', error);
+        res.status(500).json({ error: 'Error al eliminar el usuario' });
     }
+}
 
-    const updatedTask = assignUsersToTask(id, userIds);
+// GET /api/users/:userId/tasks
+// Retorna las tareas asignadas a un usuario específico
+// Paulo: router.get('/:userId/tasks', getUserTasks)
+export function getUserTasks(req, res) {
+    try {
+        const { userId } = req.params;
+        const tareas = getTasksByUserId(userId);
 
-    if (!updatedTask) {
-      return res.status(404).json({
-        msn: `Tarea con id ${id} no encontrada`,
-      });
+        // 200 OK aunque el arreglo esté vacío
+        res.status(200).json(tareas);
+    } catch (error) {
+        console.error('Error en getUserTasks:', error);
+        res.status(500).json({ error: 'Error al obtener las tareas del usuario' });
     }
-
-    res.status(200).json({
-      msn: `Usuarios asignados a la tarea ${id} correctamente`,
-      data: updatedTask,
-    });
-  } catch (error) {
-    res.status(500).json({
-      msn: "Error al asignar usuarios",
-      error: error.message,
-    });
-  }
-};
-
-// changeStatus — Maneja PATCH /tasks/:id/status
-// Cambia el estado de una tarea.
-// El body debe enviar: { status: "en progreso" }
-// Usamos PATCH (no PUT) porque solo actualizamos UN campo.
-// Estados válidos: "pendiente", "en progreso", "completada"
-const changeStatus = (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const { status } = req.body;
-
-    if (!status) {
-      return res.status(400).json({
-        msn: "El campo status es requerido",
-      });
-    }
-
-    const result = updateTaskStatus(id, status); // El modelo valida los estados
-
-    if (!result) {
-      return res.status(404).json({
-        msn: `Tarea con id ${id} no encontrada`,
-      });
-    }
-
-    // Si el modelo devolvió { error: "..." }, el estado enviado no era válido
-    if (result.error) {
-      return res.status(400).json({
-        msn: result.error,
-      });
-    }
-
-    res.status(200).json({
-      msn: `Estado de tarea ${id} actualizado a "${status}"`,
-      data: result,
-    });
-  } catch (error) {
-    res.status(500).json({
-      msn: "Error al actualizar estado",
-      error: error.message,
-    });
-  }
-};
-
-// getTaskUsers — Maneja GET /tasks/:id/users
-// Retorna los datos COMPLETOS de los usuarios asignados.
-// Primero obtiene los ids del modelo de tareas,
-// luego busca cada usuario en el modelo de usuarios.
-const getTaskUsers = (req, res) => {
-  try {
-    const id = Number(req.params.id);
-
-    const userIds = getAssignedUsers(id); // Obtenemos arreglo de ids: [1, 2]
-
-    if (userIds === null) {
-      return res.status(404).json({
-        msn: `Tarea con id ${id} no encontrada`,
-      });
-    }
-
-    // .map() convierte cada id en el objeto completo del usuario
-    // .filter(Boolean) elimina los undefined si algún id no existe
-    const users = userIds.map((uid) => getUserById(uid)).filter(Boolean);
-
-    res.status(200).json({
-      msn: `Usuarios asignados a la tarea ${id}`,
-      total: users.length,
-      data: users,
-    });
-  } catch (error) {
-    res.status(500).json({
-      msn: "Error al obtener usuarios de la tarea",
-      error: error.message,
-    });
-  }
-};
-
-// getFilteredTasks — Maneja GET /tasks/filter
-// Filtra tareas usando query params en la URL.
-// Ejemplo: GET /tasks/filter?userId=1&status=pendiente
-// req.query contiene los parámetros después del '?' en la URL.
-const getFilteredTasks = (req, res) => {
-  try {
-    // userId viene como string desde la URL, lo convertimos a número
-    const userId = req.query.userId ? Number(req.query.userId) : undefined;
-    const status = req.query.status || undefined;
-
-    const tasks = filterTasks({ userId, status });
-
-    res.status(200).json({
-      msn: "Tareas filtradas correctamente",
-      filters: { userId, status }, // Mostramos qué filtros se aplicaron
-      total: tasks.length,
-      data: tasks,
-    });
-  } catch (error) {
-    res.status(500).json({
-      msn: "Error al filtrar tareas",
-      error: error.message,
-    });
-  }
-};
-
-// getDashboard — Maneja GET /tasks/dashboard
-// Retorna estadísticas generales: totales por estado y sin asignar.
-const getDashboard = (req, res) => {
-  try {
-    const dashboardData = getDashboardData();
-
-    res.status(200).json({
-      msn: "Datos del dashboard obtenidos correctamente",
-      data: dashboardData,
-    });
-  } catch (error) {
-    res.status(500).json({
-      msn: "Error al obtener datos del dashboard",
-      error: error.message,
-    });
-  }
-};
-
-// Exportamos todas las funciones para que las rutas las puedan usar
-export {
-  getTasks,
-  getTask,
-  postTask,
-  putTask,
-  removeTask,
-  assignUsers,
-  changeStatus,
-  getTaskUsers,
-  getFilteredTasks,
-  getDashboard,
-};
+}
